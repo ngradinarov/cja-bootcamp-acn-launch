@@ -1180,8 +1180,7 @@
             fullName:  p.name || '',
             lastName:  nameParts.slice(1).join(' ') || ''
           }
-        },
-        personID: p.noGuid ? '' : (p.guid || '')
+        }
       };
     });
   }
@@ -1197,8 +1196,7 @@
             regionMRNPrefix: buildMrnPrefix(p.region, p.seq)
           }
         },
-        _id: buildMrnPrefix(p.region, p.seq),
-        personID: p.noGuid ? '' : (p.guid || '')
+        _id: buildMrnPrefix(p.region, p.seq)
       };
     });
   }
