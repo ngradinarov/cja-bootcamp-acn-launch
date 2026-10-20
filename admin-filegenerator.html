@@ -606,6 +606,13 @@
     return dt + t.h + t.m + t.s + r2 + s2 + ':000000' + '55' + s2;
   }
 
+  // DIGITALID is assigned once per persona and then kept, so it stays stable when the
+  // enrollment date is edited. Older saved personas without one get it assigned on first use.
+  function digitalIdOf(p) {
+    if (!p.digitalId) p.digitalId = buildDigitalId(p.enrollDate, p.seq);
+    return p.digitalId;
+  }
+
   function buildMrnPrefix(region, seq) {
     var suffix = (REGION_MAP[region] || {}).suffix || 'XX';
     return region + '-9' + String(seq).padStart(7,'0') + '-' + suffix;
@@ -637,6 +644,7 @@
       seq:               seq,
       guid:              noGuid ? null : (ov.guid || emailToGuid(email) || buildGuid(seq)),
       noGuid:            noGuid,
+      digitalId:         ov.digitalId || buildDigitalId(enrollDate, seq),
       name:              name,
       email:             email,
       dob:               ov.dob   || randDob(),
@@ -706,7 +714,7 @@
     var didEl = document.getElementById('calc-did-' + p.seq);
     var mrnEl = document.getElementById('calc-mrn-' + p.seq);
     var saEl  = document.getElementById('calc-sa-'  + p.seq);
-    if (didEl) didEl.textContent = buildDigitalId(p.enrollDate, p.seq);
+    if (didEl) didEl.textContent = digitalIdOf(p);
     if (mrnEl) mrnEl.textContent = buildMrnPrefix(p.region, p.seq);
     if (saEl)  saEl.textContent  = (REGION_MAP[p.region] || {}).serviceArea || '';
   }
@@ -788,7 +796,7 @@
       '</div>' +
 
       '<div class="pc-fields" style="margin-top:8px;">' +
-        roFld('DIGITALID',          p.noGuid ? '—' : buildDigitalId(p.enrollDate, s), 'did', s) +
+        roFld('DIGITALID',          p.noGuid ? '—' : digitalIdOf(p), 'did', s) +
         roFld('REGION_MRN_PREFIX',  buildMrnPrefix(p.region, s),                      'mrn', s) +
         roFld('SERVICE_AREA_NAME',  (REGION_MAP[p.region] || {}).serviceArea || '',   'sa',  s) +
       '</div>';
@@ -947,7 +955,7 @@
     var rows = personas.map(function(p) {
       return [
         p.noGuid ? '' : p.guid,
-        p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq),
+        p.noGuid ? '' : digitalIdOf(p),
         buildMrnPrefix(p.region, p.seq),
         p.region,
         (REGION_MAP[p.region] || {}).serviceArea || '',
@@ -1027,7 +1035,7 @@
     var rows = included.map(function(p) {
       return [
         p.noGuid ? '' : p.guid,
-        p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq),
+        p.noGuid ? '' : digitalIdOf(p),
         buildMrnPrefix(p.region, p.seq),
         p.planName          || '',
         p.productCode       || '',
@@ -1160,7 +1168,7 @@
       var nameParts = (p.name || '').split(' ');
       return {
         _accenture_partner: {
-          digitalID: p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq)
+          digitalID: p.noGuid ? '' : digitalIdOf(p)
         },
         _id: buildMrnPrefix(p.region, p.seq),
         person: {
@@ -1184,7 +1192,7 @@
         _accenture_partner: {
           membershipsDetails: [{ planName: p.planName || '', startDate: uc2StartDate(p) }],
           profileIdentities: {
-            digitalID:       p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq),
+            digitalID:       p.noGuid ? '' : digitalIdOf(p),
             guid:            p.noGuid ? '' : (p.guid || ''),
             regionMRNPrefix: buildMrnPrefix(p.region, p.seq)
           }
@@ -1203,7 +1211,7 @@
       return {
         _accenture_partner: {
           eventIdentities: {
-            digitalID:       p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq),
+            digitalID:       p.noGuid ? '' : digitalIdOf(p),
             guid:            p.noGuid ? '' : (p.guid || ''),
             regionMRNPrefix: mrn
           },
@@ -1211,9 +1219,6 @@
         },
         _id: id,
         eventType: 'new member enrollment',
-        identityMap: {
-          guid: [{ id: p.noGuid ? '' : (p.guid || '') }]
-        },
         producedBy: 'self',
         timestamp:  uc2Ts(p.enrollDate)
       };
@@ -1312,7 +1317,7 @@
       return '<tr>' +
         '<td>' + esc(p.name) + '</td>' +
         '<td>' + esc(p.noGuid ? '' : p.guid) + '</td>' +
-        '<td>' + esc(p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq)) + '</td>' +
+        '<td>' + esc(p.noGuid ? '' : digitalIdOf(p)) + '</td>' +
         '<td>' + esc(buildMrnPrefix(p.region, p.seq)) + '</td>' +
         '<td>' + esc(p.dob) + '</td>' +
       '</tr>';
@@ -2759,7 +2764,7 @@
         var callDate = (c.callDate || '').length === 16 ? c.callDate + ':00.000Z' : c.callDate;
         rows.push([
           p.noGuid ? '' : p.guid,
-          p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq),
+          p.noGuid ? '' : digitalIdOf(p),
           buildMrnPrefix(p.region, p.seq),
           c.callId, callDate, c.direction, c.channel, c.queue, c.agentId,
           c.reason, c.disposition, c.fcr,
@@ -2862,7 +2867,7 @@
     personas.forEach(function(p) {
       (p.imEvents || []).forEach(function(ev) {
         var interactionDate = ev.interactionDate > exportTime ? exportTime : ev.interactionDate;
-        rows.push([p.noGuid ? '' : p.guid, p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq), buildMrnPrefix(p.region, p.seq), tacticDisplayId(ev.tacticId), buildCIDFromParts(evCIDParts(ev)), ev.campaignName || '', ev.channel, ev.status, interactionDate]);
+        rows.push([p.noGuid ? '' : p.guid, p.noGuid ? '' : digitalIdOf(p), buildMrnPrefix(p.region, p.seq), tacticDisplayId(ev.tacticId), buildCIDFromParts(evCIDParts(ev)), ev.campaignName || '', ev.channel, ev.status, interactionDate]);
       });
     });
     return toCSV(h, rows);
