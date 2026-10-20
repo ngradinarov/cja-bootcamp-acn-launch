@@ -127,6 +127,12 @@
     .cc-gloss tr:last-child td { border-bottom: none; }
     .cc-gloss .cc-day4 { display: inline-block; margin-left: 6px; font-size: 0.58rem; font-weight: 700; color: #fbbf24; background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.32); padding: 1px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
 
+    /* UC2 sub-tabs */
+    .uc2-sub-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 18px; }
+    .uc2-sub-btn { padding: 7px 16px; border: 1px solid #334155; border-radius: 6px; background: transparent; color: #64748b; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all .15s; }
+    .uc2-sub-btn.active { background: rgba(16,185,129,0.15); color: #6ee7b7; border-color: rgba(16,185,129,0.4); }
+    .uc2-sub-btn:hover:not(.active) { color: #94a3b8; border-color: #475569; }
+
     /* Survey tab */
     .survey-topic-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 18px; }
     .survey-tab-btn { padding: 7px 16px; border: 1px solid #334155; border-radius: 6px; background: transparent; color: #64748b; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all .15s; }
@@ -175,6 +181,7 @@
       <button class="tab-btn" onclick="switchTab('im',this)">Interactions</button>
       <button class="tab-btn" onclick="switchTab('survey',this)">Survey</button>
       <button class="tab-btn" onclick="switchTab('callcenter',this)">Call Center</button>
+      <button class="tab-btn" onclick="switchTab('uc2',this)">UC2</button>
     </div>
 
     <!-- PERSON TAB -->
@@ -220,6 +227,43 @@
         <button class="btn-dl-primary" onclick="downloadMemberCSV()">&#11015;&nbsp; Download MEMBERSHIP.csv</button>
         <button class="btn-dl-primary" onclick="downloadMemberJSON()">&#11015;&nbsp; Download MEMBERSHIP PROFILE.json</button>
         <button class="btn-dl-primary" onclick="downloadMembershipEventJSON()">&#11015;&nbsp; Download MEMBERSHIP EVENT.json</button>
+      </div>
+
+    </div>
+
+    <!-- UC2 TAB -->
+    <div id="tab-uc2" style="display:none">
+
+      <div class="uc2-sub-tabs">
+        <button class="uc2-sub-btn active" onclick="switchUC2Sub('person',this)">Person</button>
+        <button class="uc2-sub-btn" onclick="switchUC2Sub('member',this)">Member</button>
+      </div>
+
+      <div id="uc2-sub-person">
+        <div class="sec-label">
+          UC2 Person Profile
+          <em id="uc2-person-count">— 0 personas</em>
+        </div>
+        <div id="uc2-person-wrap"></div>
+        <div class="sec-label" style="margin-top:8px;">Export</div>
+        <div class="dl-bar">
+          <button class="btn-dl-primary" onclick="downloadUC2PersonCSV()">&#11015;&nbsp; Download UC2 PERSON PROFILE.csv</button>
+          <button class="btn-dl-primary" onclick="downloadUC2PersonJSON()">&#11015;&nbsp; Download UC2 PERSON PROFILE.json</button>
+        </div>
+      </div>
+
+      <div id="uc2-sub-member" style="display:none">
+        <div class="sec-label">
+          UC2 Membership
+          <em id="uc2-member-count">— 0 personas</em>
+        </div>
+        <div id="uc2-member-list"></div>
+        <div class="sec-label" style="margin-top:8px;">Export</div>
+        <div class="dl-bar">
+          <button class="btn-dl-primary" onclick="downloadUC2MemberCSV()">&#11015;&nbsp; Download UC2 MEMBERSHIP PROFILE.csv</button>
+          <button class="btn-dl-primary" onclick="downloadUC2MemberJSON()">&#11015;&nbsp; Download UC2 MEMBERSHIP PROFILE.json</button>
+          <button class="btn-dl-primary" onclick="downloadUC2MembershipEventJSON()">&#11015;&nbsp; Download UC2 MEMBERSHIP EVENT.json</button>
+        </div>
       </div>
 
     </div>
@@ -781,6 +825,7 @@
     if (name === 'callcenter')    renderCallCenterTab();
     if (name === 'im')            renderIMTab();
     if (name === 'survey')        renderSurveyTab();
+    if (name === 'uc2')           renderUC2Tab();
   }
 
   function renderMemberTab() {
@@ -1093,6 +1138,289 @@
     a.download = exportPrefix() + 'MEMBERSHIP_EVENT_' + today() + '.json';
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // ── UC2 (Person Profile / Membership Profile / Membership Event) ─
+  // Same persona data as the Person and Member tabs, different output schemas.
+
+  function uc2AgeRange(dob) {
+    if (!dob) return '';
+    var b = new Date(dob + 'T12:00:00'), n = new Date();
+    var age = n.getFullYear() - b.getFullYear();
+    if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) age--;
+    if (age < 18) return 'Under 18';
+    if (age <= 24) return '18–24';
+    if (age <= 34) return '25–34';
+    if (age <= 44) return '35–44';
+    if (age <= 54) return '45–54';
+    if (age <= 64) return '55–64';
+    return '65+';
+  }
+
+  function uc2Ts(dateStr) {
+    return dateStr ? dateStr + 'T00:00:00.000Z' : new Date().toISOString().slice(0,23) + 'Z';
+  }
+
+  function uc2Repo(p) {
+    var ts = uc2Ts(p.enrollDate);
+    return { createDate: ts, discardDate: '', expires: '', lastPublishedTime: ts, modifyDate: ts };
+  }
+
+  function uc2BatchId(p) { return 'UC2-BATCH-' + (p.enrollDate || today()).replace(/-/g, ''); }
+
+  function uc2StartDate(p) { return p.effectiveStartDate || firstOfNextMonth(p.enrollDate) || ''; }
+
+  function uc2IncludedMembers() {
+    return personas.filter(function(p){ return p.includeInMember !== false; });
+  }
+
+  function buildUC2PersonJSON() {
+    return personas.map(function(p) {
+      var birthDate = p.dob || '';
+      var parts     = birthDate.split('-');
+      var nameParts = (p.name || '').split(' ');
+      return {
+        _accenture_partner: {
+          digitalID:   p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq),
+          ecidMarketo: '',
+          person: {
+            ageRange:   uc2AgeRange(birthDate),
+            isProspect: false
+          }
+        },
+        _id: buildMrnPrefix(p.region, p.seq),
+        _repo: uc2Repo(p),
+        createdByBatchID:  uc2BatchId(p),
+        modifiedByBatchID: uc2BatchId(p),
+        person: {
+          birthDate:        birthDate,
+          birthDayAndMonth: (parts[1] && parts[2]) ? parts[1] + '-' + parts[2] : '',
+          birthYear:        parts[0] ? parseInt(parts[0], 10) : 0,
+          gender:           'not_specified',
+          maritalStatus:    'not_specified',
+          name: {
+            courtesyTitle: '',
+            firstName:     nameParts[0] || '',
+            fullName:      p.name || '',
+            lastName:      nameParts.slice(1).join(' ') || '',
+            middleName:    '',
+            suffix:        ''
+          },
+          nationality: 'US',
+          type:        ''
+        },
+        personID:                 p.noGuid ? '' : (p.guid || ''),
+        repositoryCreatedBy:      'admin-filegenerator',
+        repositoryLastModifiedBy: 'admin-filegenerator'
+      };
+    });
+  }
+
+  function buildUC2MemberJSON() {
+    return uc2IncludedMembers().map(function(p) {
+      return {
+        _accenture_partner: {
+          membershipsDetails: [{ planName: p.planName || '', startDate: uc2StartDate(p) }],
+          profileIdentities: {
+            digitalID:       p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq),
+            guid:            p.noGuid ? '' : (p.guid || ''),
+            regionMRNPrefix: buildMrnPrefix(p.region, p.seq)
+          }
+        },
+        _id: buildMrnPrefix(p.region, p.seq),
+        _repo: uc2Repo(p),
+        createdByBatchID:         uc2BatchId(p),
+        modifiedByBatchID:        uc2BatchId(p),
+        personID:                 p.noGuid ? '' : (p.guid || ''),
+        repositoryCreatedBy:      'admin-filegenerator',
+        repositoryLastModifiedBy: 'admin-filegenerator'
+      };
+    });
+  }
+
+  function buildUC2MembershipEventJSON() {
+    return uc2IncludedMembers().map(function(p) {
+      var mrn   = buildMrnPrefix(p.region, p.seq);
+      var start = uc2StartDate(p);
+      var id    = mrn + (p.enrollDate || '') + (p.planName || '').replace(/\s/g, '');
+      return {
+        _accenture_partner: {
+          eventIdentities: {
+            digitalID:       p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq),
+            guid:            p.noGuid ? '' : (p.guid || ''),
+            regionMRNPrefix: mrn
+          },
+          membershipsDetails: [{ planName: p.planName || '', startDate: start }]
+        },
+        _id: id,
+        eventMergeId: id,
+        eventType: 'new member enrollment',
+        identityMap: {
+          guid: [{
+            authenticatedState: 'authenticated',
+            id:      p.noGuid ? '' : (p.guid || ''),
+            primary: true
+          }]
+        },
+        producedBy: 'self',
+        timestamp:  uc2Ts(p.enrollDate)
+      };
+    });
+  }
+
+  // Flatten a record to dotted-path columns. Arrays of objects use the first element, no index
+  // (e.g. _accenture_partner.membershipsDetails.planName).
+  function uc2Flatten(obj, prefix, out) {
+    out = out || {};
+    Object.keys(obj).forEach(function(k) {
+      var v = obj[k], key = prefix ? prefix + '.' + k : k;
+      if (Array.isArray(v)) {
+        if (v.length && typeof v[0] === 'object') uc2Flatten(v[0], key, out);
+        else out[key] = v.join('|');
+      } else if (v && typeof v === 'object') uc2Flatten(v, key, out);
+      else out[key] = v;
+    });
+    return out;
+  }
+
+  function uc2ToCSV(records) {
+    var flat = records.map(function(r){ return uc2Flatten(r); });
+    var headers = flat.length ? Object.keys(flat[0]) : [];
+    return toCSV(headers, flat.map(function(f){ return headers.map(function(h){ return f[h]; }); }));
+  }
+
+  function uc2DownloadJSON(data, name) {
+    var json = JSON.stringify(data.length === 1 ? data[0] : data);
+    var blob = new Blob([json], { type: 'application/json' });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href = url; a.download = exportPrefix() + name + '_' + today() + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function uc2CheckMembers() {
+    if (uc2IncludedMembers().length === 0) {
+      alert('No personas are included in Member. Toggle the "Member" checkbox on personas in the Person tab.');
+      return false;
+    }
+    return true;
+  }
+
+  function uc2CheckPersons() {
+    if (personas.length === 0) { alert('Add at least one persona first.'); return false; }
+    return true;
+  }
+
+  function downloadUC2PersonCSV() {
+    if (!uc2CheckPersons()) return;
+    triggerDownload(uc2ToCSV(buildUC2PersonJSON()), exportPrefix() + 'UC2_PERSON_PROFILE_' + today() + '.csv');
+  }
+  function downloadUC2PersonJSON() {
+    if (!uc2CheckPersons()) return;
+    uc2DownloadJSON(buildUC2PersonJSON(), 'UC2_PERSON_PROFILE');
+  }
+  function downloadUC2MemberCSV() {
+    if (!uc2CheckMembers()) return;
+    triggerDownload(uc2ToCSV(buildUC2MemberJSON()), exportPrefix() + 'UC2_MEMBERSHIP_PROFILE_' + today() + '.csv');
+  }
+  function downloadUC2MemberJSON() {
+    if (!uc2CheckMembers()) return;
+    uc2DownloadJSON(buildUC2MemberJSON(), 'UC2_MEMBERSHIP_PROFILE');
+  }
+  function downloadUC2MembershipEventJSON() {
+    if (!uc2CheckMembers()) return;
+    uc2DownloadJSON(buildUC2MembershipEventJSON(), 'UC2_MEMBERSHIP_EVENT');
+  }
+
+  // ── RENDER — UC2 TAB ──────────────────────────────────────────────
+
+  function switchUC2Sub(name, btn) {
+    document.querySelectorAll('.uc2-sub-btn').forEach(function(b){ b.classList.remove('active'); });
+    document.getElementById('uc2-sub-person').style.display = name === 'person' ? '' : 'none';
+    document.getElementById('uc2-sub-member').style.display = name === 'member' ? '' : 'none';
+    btn.classList.add('active');
+    renderUC2Tab();
+  }
+
+  function renderUC2Tab() {
+    renderUC2Person();
+    renderUC2Member();
+  }
+
+  function renderUC2Person() {
+    var wrap = document.getElementById('uc2-person-wrap');
+    document.getElementById('uc2-person-count').textContent =
+      '— ' + personas.length + ' persona' + (personas.length !== 1 ? 's' : '');
+    if (!personas.length) {
+      wrap.innerHTML = '<div class="empty-state">No personas yet — add personas in the <strong>Person</strong> tab first.</div>';
+      return;
+    }
+    var rows = personas.map(function(p) {
+      return '<tr>' +
+        '<td>' + esc(p.name) + '</td>' +
+        '<td>' + esc(p.noGuid ? '' : p.guid) + '</td>' +
+        '<td>' + esc(p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq)) + '</td>' +
+        '<td>' + esc(buildMrnPrefix(p.region, p.seq)) + '</td>' +
+        '<td>' + esc(p.dob) + '</td>' +
+        '<td>' + esc(uc2AgeRange(p.dob)) + '</td>' +
+      '</tr>';
+    }).join('');
+    wrap.innerHTML = '<div class="survey-table-wrap"><table class="survey-tbl"><thead><tr>' +
+      '<th>Name</th><th>GUID</th><th>Digital ID</th><th>Region MRN Prefix</th><th>Birth Date</th><th>Age Range</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<div style="font-size:0.72rem;color:#64748b;margin-top:8px;">Edit persona details in the <strong>Person</strong> tab.</div>';
+  }
+
+  function renderUC2Member() {
+    var list     = document.getElementById('uc2-member-list');
+    var included = uc2IncludedMembers();
+    document.getElementById('uc2-member-count').textContent =
+      '— ' + included.length + ' persona' + (included.length !== 1 ? 's' : '');
+    list.innerHTML = '';
+    if (!included.length) {
+      list.innerHTML = '<div class="empty-state">No personas included — add personas in the <strong>Person</strong> tab. Use the <strong>Member</strong> toggle on each card to include them here.</div>';
+      return;
+    }
+    included.forEach(function(p){ list.appendChild(buildUC2MemberCard(p)); });
+  }
+
+  function buildUC2MemberCard(p) {
+    var s       = p.seq;
+    var div     = document.createElement('div');
+    div.className = 'persona-card';
+    var presets = PLAN_PRESETS[p.region] || PLAN_PRESETS.CN;
+    var selIdx  = presets.findIndex(function(pr){ return pr.planName === p.planName; });
+    var presetOpts =
+      '<option value="-1"' + (selIdx < 0 ? ' selected' : '') + '>— custom —</option>' +
+      presets.map(function(pr, i){
+        return '<option value="' + i + '"' + (i === selIdx ? ' selected' : '') + '>' + pr.label + '</option>';
+      }).join('');
+
+    div.innerHTML =
+      '<div class="pc-header">' +
+        '<div class="guid-pill">GUID: ' + p.guid + '</div>' +
+        '<span class="seq-tag">' + esc(p.name) + '</span>' +
+        '<span class="region-badge">' + p.region + '</span>' +
+      '</div>' +
+      '<div class="preset-row">' +
+        '<label class="fg-label">Plan Preset</label>' +
+        '<select class="fg-select" onchange="applyUC2PlanPreset(' + s + ',this.value)">' + presetOpts + '</select>' +
+      '</div>' +
+      '<div class="pc-fields" style="grid-template-columns:2.5fr 1fr;margin-bottom:0;">' +
+        mfld('Plan Name', 'planName', p.planName, s) +
+        '<div>' +
+          '<label class="fg-label">Start Date</label>' +
+          '<input class="fg-input" type="date" value="' + esc(p.effectiveStartDate || '') + '" ' +
+            'oninput="setMemberField(' + s + ',\'effectiveStartDate\',this.value)">' +
+        '</div>' +
+      '</div>';
+    return div;
+  }
+
+  function applyUC2PlanPreset(seq, idx) {
+    applyPlanPreset(seq, idx);   // updates shared persona + re-renders Member tab
+    renderUC2Member();
   }
 
   function today() { return new Date().toISOString().slice(0,10); }
