@@ -1143,20 +1143,6 @@
   // ── UC2 (Person Profile / Membership Profile / Membership Event) ─
   // Same persona data as the Person and Member tabs, different output schemas.
 
-  function uc2AgeRange(dob) {
-    if (!dob) return '';
-    var b = new Date(dob + 'T12:00:00'), n = new Date();
-    var age = n.getFullYear() - b.getFullYear();
-    if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) age--;
-    if (age < 18) return 'Under 18';
-    if (age <= 24) return '18–24';
-    if (age <= 34) return '25–34';
-    if (age <= 44) return '35–44';
-    if (age <= 54) return '45–54';
-    if (age <= 64) return '55–64';
-    return '65+';
-  }
-
   function uc2Ts(dateStr) {
     return dateStr ? dateStr + 'T00:00:00.000Z' : new Date().toISOString().slice(0,23) + 'Z';
   }
@@ -1174,8 +1160,7 @@
       var nameParts = (p.name || '').split(' ');
       return {
         _accenture_partner: {
-          digitalID: p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq),
-          person: { ageRange: uc2AgeRange(birthDate) }
+          digitalID: p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq)
         },
         _id: buildMrnPrefix(p.region, p.seq),
         person: {
@@ -1225,14 +1210,9 @@
           membershipsDetails: [{ planName: p.planName || '', startDate: start }]
         },
         _id: id,
-        eventMergeId: id,
         eventType: 'new member enrollment',
         identityMap: {
-          guid: [{
-            authenticatedState: 'authenticated',
-            id:      p.noGuid ? '' : (p.guid || ''),
-            primary: true
-          }]
+          guid: [{ id: p.noGuid ? '' : (p.guid || '') }]
         },
         producedBy: 'self',
         timestamp:  uc2Ts(p.enrollDate)
@@ -1335,11 +1315,10 @@
         '<td>' + esc(p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq)) + '</td>' +
         '<td>' + esc(buildMrnPrefix(p.region, p.seq)) + '</td>' +
         '<td>' + esc(p.dob) + '</td>' +
-        '<td>' + esc(uc2AgeRange(p.dob)) + '</td>' +
       '</tr>';
     }).join('');
     wrap.innerHTML = '<div class="survey-table-wrap"><table class="survey-tbl"><thead><tr>' +
-      '<th>Name</th><th>GUID</th><th>Digital ID</th><th>Region MRN Prefix</th><th>Birth Date</th><th>Age Range</th>' +
+      '<th>Name</th><th>GUID</th><th>Digital ID</th><th>Region MRN Prefix</th><th>Birth Date</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '<div style="font-size:0.72rem;color:#64748b;margin-top:8px;">Edit persona details in the <strong>Person</strong> tab.</div>';
   }
