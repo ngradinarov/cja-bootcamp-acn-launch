@@ -1163,7 +1163,8 @@
 
   function uc2Repo(p) {
     var ts = uc2Ts(p.enrollDate);
-    return { createDate: ts, discardDate: '', expires: '', lastPublishedTime: ts, modifyDate: ts };
+    // discardDate / expires are DateTime in the schema — omit rather than send ''
+    return { createDate: ts, lastPublishedTime: ts, modifyDate: ts };
   }
 
   function uc2BatchId(p) { return 'UC2-BATCH-' + (p.enrollDate || today()).replace(/-/g, ''); }
