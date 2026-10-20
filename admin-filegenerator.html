@@ -1161,14 +1161,6 @@
     return dateStr ? dateStr + 'T00:00:00.000Z' : new Date().toISOString().slice(0,23) + 'Z';
   }
 
-  function uc2Repo(p) {
-    var ts = uc2Ts(p.enrollDate);
-    // discardDate / expires are DateTime in the schema — omit rather than send ''
-    return { createDate: ts, lastPublishedTime: ts, modifyDate: ts };
-  }
-
-  function uc2BatchId(p) { return 'UC2-BATCH-' + (p.enrollDate || today()).replace(/-/g, ''); }
-
   function uc2StartDate(p) { return p.effectiveStartDate || firstOfNextMonth(p.enrollDate) || ''; }
 
   function uc2IncludedMembers() {
@@ -1182,37 +1174,21 @@
       var nameParts = (p.name || '').split(' ');
       return {
         _accenture_partner: {
-          digitalID:   p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq),
-          ecidMarketo: '',
-          person: {
-            ageRange:   uc2AgeRange(birthDate),
-            isProspect: false
-          }
+          digitalID: p.noGuid ? '' : buildDigitalId(p.enrollDate, p.seq),
+          person: { ageRange: uc2AgeRange(birthDate) }
         },
         _id: buildMrnPrefix(p.region, p.seq),
-        _repo: uc2Repo(p),
-        createdByBatchID:  uc2BatchId(p),
-        modifiedByBatchID: uc2BatchId(p),
         person: {
           birthDate:        birthDate,
           birthDayAndMonth: (parts[1] && parts[2]) ? parts[1] + '-' + parts[2] : '',
           birthYear:        parts[0] ? parseInt(parts[0], 10) : 0,
-          gender:           'not_specified',
-          maritalStatus:    'not_specified',
           name: {
-            courtesyTitle: '',
-            firstName:     nameParts[0] || '',
-            fullName:      p.name || '',
-            lastName:      nameParts.slice(1).join(' ') || '',
-            middleName:    '',
-            suffix:        ''
-          },
-          nationality: 'US',
-          type:        ''
+            firstName: nameParts[0] || '',
+            fullName:  p.name || '',
+            lastName:  nameParts.slice(1).join(' ') || ''
+          }
         },
-        personID:                 p.noGuid ? '' : (p.guid || ''),
-        repositoryCreatedBy:      'admin-filegenerator',
-        repositoryLastModifiedBy: 'admin-filegenerator'
+        personID: p.noGuid ? '' : (p.guid || '')
       };
     });
   }
@@ -1229,12 +1205,7 @@
           }
         },
         _id: buildMrnPrefix(p.region, p.seq),
-        _repo: uc2Repo(p),
-        createdByBatchID:         uc2BatchId(p),
-        modifiedByBatchID:        uc2BatchId(p),
-        personID:                 p.noGuid ? '' : (p.guid || ''),
-        repositoryCreatedBy:      'admin-filegenerator',
-        repositoryLastModifiedBy: 'admin-filegenerator'
+        personID: p.noGuid ? '' : (p.guid || '')
       };
     });
   }
